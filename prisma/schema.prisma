@@ -1,10 +1,52 @@
-
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["mongodb"]
 }
 
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  walletAddress String   @unique
+  nickname      String   @unique
+  email         String   @unique
+  avatar        String   @default("https://example.com/avatar.png")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  nfts          NFT[]
+
+  @@map("users")
+}
+
+model NFT {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  tokenId       String     @unique
+  ownerWallet   String
+  owner         User       @relation(fields: [ownerWallet], references: [walletAddress], onDelete: Cascade)
+  creatorWallet String
+  name          String
+  description   String
+  image         String
+  metadataURI   String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  traitIDs      String[]   @db.ObjectId
+  traits        NFTTrait[] @relation(fields: [traitIDs], references: [id])
+
+  @@map("ntfs")
+}
+
+model NFTTrait {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  traitType String
+  value     String
+  
+  ntfIDs    String[] @db.ObjectId
+  nfts      NFT[]    @relation(fields: [ntfIDs], references: [id])
+
+  @@unique([traitType, value])
+  @@map("nft_traits")
 }
