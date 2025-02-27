@@ -8,14 +8,66 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  walletAddress String   @unique
-  nickname      String   @unique
-  email         String   @unique
-  avatar        String   @default("https://example.com/avatar.png")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  walletAddress String       @unique
+  nickname      String       @unique
+  email         String       @unique
+  avatar        String       @default("https://example.com/avatar.png")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  nfts          NFT[]
+  collections   Collection[]
 
   @@map("users")
 }
 
+model NFT {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  tokenId       String?    @unique
+  collectionId  String     @db.ObjectId
+  collection    Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  ownerWallet   String
+  owner         User       @relation(fields: [ownerWallet], references: [walletAddress], onDelete: Cascade)
+  creatorWallet String
+  name          String
+  description   String
+  quantity      Int        @default(1)
+  image         String
+  metadataURI   String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  traitIDs String[]   @db.ObjectId
+  traits   NFTTrait[] @relation(fields: [traitIDs], references: [id])
+
+  @@map("ntfs")
+}
+
+model NFTTrait {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  traitType String
+  value     String
+
+  ntfIDs String[] @db.ObjectId
+  nfts   NFT[]    @relation(fields: [ntfIDs], references: [id])
+
+  @@unique([traitType, value])
+  @@map("nft_traits")
+}
+
+model Collection {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  contractAddress String   @unique
+  name            String
+  symbol          String
+  image           String
+  metadata        String
+  creatorWallet   String
+  creator         User     @relation(fields: [creatorWallet], references: [walletAddress], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  nfts NFT[]
+
+  @@map("collections")
+}

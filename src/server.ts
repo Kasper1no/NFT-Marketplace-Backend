@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { userRouter } from "./user/user.controller";
+import { nftRouter } from "./nft/nft.controller";
 
 dotenv.config();
 
@@ -13,6 +14,8 @@ async function main() {
     app.use(express.json());
 
     app.use("/api/users", userRouter)
+
+    app.use("/api/nfts", nftRouter)
 
     const port = process.env.PORT || 4200;
     app.listen(port, () => {
