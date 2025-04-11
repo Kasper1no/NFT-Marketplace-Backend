@@ -8,71 +8,110 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(auto()) @map("_id") @db.ObjectId
-  walletAddress String         @unique
-  nickname      String         @unique
-  email         String         @unique
-  avatar        String         @default("https://example.com/avatar.png")
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  nfts          NFT[]
+  id            String @id @default(auto()) @map("_id") @db.ObjectId
+  walletAddress String @unique
+  nickname      String @unique
+  email         String @unique
+  avatar        String @default("https://res.cloudinary.com/dnkulgobc/image/upload/v1739471803/default_avatar_qh3umt.jpg")
+  banner        String @default("https://res.cloudinary.com/dnkulgobc/image/upload/v1739471803/default_banner_pxjfac.jpg")
+  balance       Float  @default(100)
+
+  itemSoldNotification           Boolean @default(true)
+  offerActivityNotification      Boolean @default(true)
+  bestOfferActivityNotification  Boolean @default(true)
+  successfulTransferNotification Boolean @default(true)
+  transferNotification           Boolean @default(true)
+  outbidNotification             Boolean @default(true)
+  successfulPurchaseNotification Boolean @default(true)
+  successfulMintNotification     Boolean @default(true)
+
   collections   Collection[]
   refreshTokens RefreshToken[]
-  nonce         Nonce?         
 
+  nftsOwned             NFT[]           @relation("OwnerRelation")
+  nftsCreated           NFT[]           @relation("CreatorRelation")
+  transactionsAsBuyer   Transaction[]   @relation("BuyerRelation")
+  transactionsAsSeller  Transaction[]   @relation("SellerRelation")
+  listings              NFTListing[]
+  friendships1          Friendship[]    @relation("UserFriend1")
+  friendships2          Friendship[]    @relation("UserFriend2")
+  friendRequestSender   FriendRequest[] @relation("SenderRelation")
+  friendRequestReciever FriendRequest[] @relation("ReceiverRelation")
+  tradeOfferer          Trade[]         @relation("TradeOfferer")
+  tradeTaker            Trade[]         @relation("TradeTaker")
+  notifications         Notification[]
 
   @@map("users")
 }
 
 model NFT {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  tokenId       String?    @unique
-  collectionId  String     @db.ObjectId
-  collection    Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  tokenId       String?
+  collectionId  String   @db.ObjectId
   ownerWallet   String
-  owner         User       @relation(fields: [ownerWallet], references: [walletAddress], onDelete: Cascade)
   creatorWallet String
   name          String
-  description   String
-  quantity      Int        @default(1)
+  URL           String
+  price         Float
   image         String
   metadataURI   String
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  traitIDs String[]   @db.ObjectId
-  traits   NFTTrait[] @relation(fields: [traitIDs], references: [id])
+  collection Collection   @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  owner      User         @relation("OwnerRelation", fields: [ownerWallet], references: [walletAddress], onDelete: Cascade)
+  creator    User         @relation("CreatorRelation", fields: [creatorWallet], references: [walletAddress], onDelete: Cascade)
+  listings   NFTListing[]
+  TradeItem  TradeItem[]
 
-  @@map("ntfs")
-}
-
-model NFTTrait {
-  id        String @id @default(auto()) @map("_id") @db.ObjectId
-  traitType String
-  value     String
-
-  ntfIDs String[] @db.ObjectId
-  nfts   NFT[]    @relation(fields: [ntfIDs], references: [id])
-
-  @@unique([traitType, value])
-  @@map("nft_traits")
+  @@unique([tokenId, collectionId])
+  @@map("nfts")
 }
 
 model Collection {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  contractAddress String   @unique
+  id              String     @id @default(auto()) @map("_id") @db.ObjectId
+  contractAddress String     @unique
   name            String
   symbol          String
   image           String
   metadata        String
+  royalties       Float      @default(0)
+  blockchain      Blockchain
   creatorWallet   String
-  creator         User     @relation(fields: [creatorWallet], references: [walletAddress], onDelete: Cascade)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  creator         User       @relation(fields: [creatorWallet], references: [walletAddress], onDelete: Cascade)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
-  nfts NFT[]
+  twitterLink   String?
+  discordLink   String?
+  facebookLink  String?
+  instagramLink String?
+  telegramLink  String?
+
+  nfts             NFT[]
+  collectionBlocks CollectionBlock[]
 
   @@map("collections")
+}
+
+enum Blockchain {
+  ARBITRUM
+  AVALANCHE
+  BASE
+  BLAST
+  ETHEREUM
+  POLYGON
+  SEI
+  ZORA
+}
+
+model CollectionBlock {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  collectionId String     @db.ObjectId
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  imageUrl     String
+
+  @@map("collection_blocks")
 }
 
 model RefreshToken {
@@ -87,14 +126,190 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-model Nonce {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  walletAddress String   @unique
-  nonce         String
-  createdAt     DateTime @default(now())
+// model Nonce {
+//   id            String   @id @default(auto()) @map("_id") @db.ObjectId
+//   walletAddress String   @unique
+//   nonce         String
+//   createdAt     DateTime @default(now())
 
-  user User @relation(fields: [walletAddress], references: [walletAddress], onDelete: Cascade)
+//   user User @relation(fields: [walletAddress], references: [walletAddress], onDelete: Cascade)
 
-  @@index([createdAt])
-  @@map("nonces")
+//   @@index([createdAt])
+//   @@map("nonces")
+// }
+
+model Transaction {
+  id              String            @id @default(auto()) @map("_id") @db.ObjectId
+  buyerWallet     String
+  sellerWallet    String
+  listingId       String            @db.ObjectId
+  price           Float
+  network         String
+  createdAt       DateTime          @default(now())
+  status          TransactionStatus
+
+  buyer   User       @relation("BuyerRelation", fields: [buyerWallet], references: [walletAddress])
+  seller  User       @relation("SellerRelation", fields: [sellerWallet], references: [walletAddress])
+  listing NFTListing @relation(fields: [listingId], references: [id])
+
+  @@map("transactions")
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model NFTListing {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  nftId         String        @db.ObjectId
+  sellerWallet  String
+  price         Float
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  contractAddr  String
+  transactionId String?
+  dropAt        DateTime?
+  status        ListingStatus @default(ACTIVE)
+
+  nft    NFT  @relation(fields: [nftId], references: [id])
+  seller User @relation(fields: [sellerWallet], references: [walletAddress])
+
+  transactions Transaction[]
+  bids         Bid[]         @relation(name: "BidsHistoryRelation")
+
+  @@map("nft_listing")
+}
+
+enum ListingStatus {
+  SCHEDULED
+  ACTIVE
+  SOLD
+  CANCELLED
+}
+
+model Bid {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  listingId    String    @db.ObjectId
+  bidderWallet String
+  price        Float
+  status       BidStatus @default(ACTIVE)
+  createdAt    DateTime  @default(now())
+
+  listing NFTListing @relation(fields: [listingId], references: [id], name: "BidsHistoryRelation")
+
+  @@map("bids")
+}
+
+enum BidStatus {
+  ACTIVE
+  ACCEPTED
+  REJECTED
+}
+
+model Friendship {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  user1Wallet String
+  user2Wallet String
+  createdAt   DateTime @default(now())
+
+  user1 User @relation("UserFriend1", fields: [user1Wallet], references: [walletAddress])
+  user2 User @relation("UserFriend2", fields: [user2Wallet], references: [walletAddress])
+
+  @@unique([user1Wallet, user2Wallet])
+  @@map("friendships")
+}
+
+model FriendRequest {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  senderWallet   String
+  receiverWallet String
+  status         RequestStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+
+  sender   User @relation("SenderRelation", fields: [senderWallet], references: [walletAddress])
+  receiver User @relation("ReceiverRelation", fields: [receiverWallet], references: [walletAddress])
+
+  @@unique([senderWallet, receiverWallet])
+  @@map("friend_requests")
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model Trade {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  offererWallet String
+  takerWallet   String
+  status        TradeStatus @default(PENDING)
+  offerTime     DateTime    @default(now())
+  exchangeTime  DateTime?
+
+  offerer    User        @relation("TradeOfferer", fields: [offererWallet], references: [walletAddress])
+  taker      User        @relation("TradeTaker", fields: [takerWallet], references: [walletAddress])
+  tradeItems TradeItem[]
+
+  @@map("trades")
+}
+
+enum TradeStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model TradeItem {
+  id      String    @id @default(auto()) @map("_id") @db.ObjectId
+  tradeId String    @db.ObjectId
+  nftId   String    @db.ObjectId
+  side    TradeSide
+  trade   Trade     @relation(fields: [tradeId], references: [id])
+  nft     NFT       @relation(fields: [nftId], references: [id])
+
+  @@map("trade_items")
+}
+
+enum TradeSide {
+  OFFER
+  RECEIVER
+}
+
+model Notification {
+  id          String                  @id @default(auto()) @map("_id") @db.ObjectId
+  userWallet  String
+  title       String
+  message     String
+  type        NotificationType
+  webStatus   WebNotificationStatus   @default(SENT)
+  emailStatus EmailNotificationStatus @default(UNSENT)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  user User @relation(fields: [userWallet], references: [walletAddress])
+}
+
+enum NotificationType {
+  MINT
+  OFFER
+  BESTOFFER
+  SUCCESSTRANSFER
+  TRANSFER
+  OUTBID
+  PURCHASE
+}
+
+enum WebNotificationStatus {
+  SENT
+  FAILED
+  READ
+}
+
+enum EmailNotificationStatus {
+  SENT
+  UNSENT
+  FAILED
 }

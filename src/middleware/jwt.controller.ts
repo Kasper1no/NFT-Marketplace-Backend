@@ -1,74 +1,73 @@
 import { Router, Request, Response } from "express";
-import cors from "cors";
 import jwt from "jsonwebtoken";
 import { randomBytes } from "crypto";
 import { ethers } from "ethers";
 import { TokenService } from "./jwt.service";
 import { addressValidator } from "@/user/user.dto";
+import { UserService } from "@/user/user.service";
 
 
 const router = Router();
 
+const userService = new UserService();
 const tokenService = new TokenService();
 
-router.use(cors());
 
-router.get("/nonce", async (req: Request, res: Response) => {
+// router.get("/nonce", async (req: Request, res: Response) => {
+//   try {
+//     const address = req.query.address as string | undefined;
+//     const addressValidation = await addressValidator.safeParseAsync(address);
+
+//     if (!address || !addressValidation.success) {
+//       res.status(400).json({ message: "Address is required" });
+//       return;
+//     }
+
+//     var nonce = await tokenService.getNonce(addressValidation.data);
+
+//     if (!nonce) {
+//       nonce = randomBytes(16).toString("hex");
+
+//       await tokenService.upsertNonce(address, nonce);
+//     }
+
+//     res.status(200).json({ nonce });
+//   } catch (err) {
+//     console.error("Error getting nonce: ", err)
+//     res.status(500).json({ message: "Internal server error" })
+//     return
+//   }
+// })
+
+router.post("/login", async (req: Request, res: Response) => {
   try {
-    const address = req.query.address as string | undefined;
-    const addressValidation = await addressValidator.safeParseAsync(address);
+    const validation = await addressValidator.safeParseAsync(req.body.walletAddress);
 
-    if (!address || !addressValidation.success) {
-      res.status(400).json({ message: "Address is required" });
+    if (!validation.success) {
+      res.status(400).json({ message: validation.error.errors });
       return;
     }
 
-    var nonce = await tokenService.getNonce(addressValidation.data);
-
-    if (!nonce) {
-      nonce = randomBytes(16).toString("hex");
-
-      await tokenService.upsertNonce(address, nonce);
-    }
-
-    res.status(200).json({ nonce });
-  } catch (err) {
-    console.error("Error getting nonce: ", err)
-    res.status(500).json({ message: "Internal server error" })
-    return
-  }
-})
-
-router.post("/signin", async (req: Request, res: Response) => {
-  try {
-    const address = req.body.address;
-    const signature = req.body.signature;
-
-    if (!address || !signature) {
-      res.status(400).json({ message: "Address and signature are required" });
+    const user = await userService.getUserByWalletAddress(validation.data);
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
       return;
     }
 
-    const nonce = await tokenService.getNonce(address);
+    const accessToken = await tokenService.createAccessToken(validation.data);
+    const refreshToken = await tokenService.createRefreshToken(validation.data);
+    await tokenService.upsertRefreshToken(validation.data, refreshToken);
 
-    if (!nonce) {
-      res.status(400).json({ message: "Nonce not found" });
-      return;
-    }
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
-    const fixedSignature = signature.startsWith("0x") ? signature : "0x" + signature;
-    const verifiedAddress = ethers.verifyMessage(nonce, fixedSignature);
-
-    if (verifiedAddress.toLowerCase() !== address.toLowerCase()) {
-      res.status(400).json({ message: "Invalid signature" });
-      return;
-    }
-
-    const accessToken = tokenService.createAccessToken(address);
-    const refreshToken = tokenService.createRefreshToken(address);
-    tokenService.upsertRefreshToken(address, refreshToken);
-
-    res.status(200).json({ accessToken, refreshToken });
+    res.status(200).json({
+      user,
+      accessToken,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });
@@ -76,24 +75,50 @@ router.post("/signin", async (req: Request, res: Response) => {
 })
 
 router.post("/refresh", async (req: Request, res: Response) => {
-  const refreshToken = req.body.refreshToken as string;
-
-  if (!refreshToken) {
-    res.status(400).json({ message: "Refresh token is required" });
-    return;
-  }
-
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET as string) as { walletAddress: string };
-    const accessToken = tokenService.createAccessToken(decoded.walletAddress);
-    const newRefreshToken = tokenService.createRefreshToken(decoded.walletAddress);
-    tokenService.upsertRefreshToken(decoded.walletAddress, newRefreshToken);
+    const refreshToken = req.cookies.refreshToken;
+    const validation = await addressValidator.safeParseAsync(req.body.walletAddress);
 
-    res.status(200).json({ accessToken, refreshToken: newRefreshToken });
+    if (!refreshToken) {
+      res.status(400).json({ message: "Refresh token is required" });
+      return;
+    }
+
+    if (!validation.success) {
+      res.status(400).json({ message: validation.error.errors });
+      return;
+    }
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET as string) as { walletAddress: string };
+
+    if (decoded.walletAddress !== validation.data) {
+      res.status(401).json({ message: "Invalid wallet address" });
+      return;
+    }
+
+    const accessToken = await tokenService.createAccessToken(decoded.walletAddress);
+    const newRefreshToken = await tokenService.createRefreshToken(decoded.walletAddress);
+
+    await tokenService.upsertRefreshToken(decoded.walletAddress, newRefreshToken);
+
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({ accessToken });
   } catch (err) {
     console.error(err);
     res.status(401).json({ message: "Invalid refresh token" });
   }
 })
+
+router.post('/logout', async (req: Request, res: Response) => {
+  res.clearCookie('refreshToken', {
+      path: '/',
+      httpOnly: true,
+  });
+  res.status(200).send('Cookies cleared');
+});
 
 export const jwtRouter = router

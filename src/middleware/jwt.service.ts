@@ -42,20 +42,20 @@ export class TokenService {
         });
     }
 
-    upsertNonce(walletAddress: string, nonce: string) {
-        return this.prisma.nonce.upsert({
-            where: { walletAddress },
-            update: {
-                nonce: nonce,
-            },
-            create: {
-                walletAddress,
-                nonce: nonce,
-            },
-        });
-    }
+    // upsertNonce(walletAddress: string, nonce: string) {
+    //     return this.prisma.nonce.upsert({
+    //         where: { walletAddress },
+    //         update: {
+    //             nonce: nonce,
+    //         },
+    //         create: {
+    //             walletAddress,
+    //             nonce: nonce,
+    //         },
+    //     });
+    // }
 
-    getNonce(walletAddress: string): Promise<string | null> {
-        return this.prisma.nonce.findUnique({ where: { walletAddress } }).then((nonce) => nonce?.nonce || null);    
-    }
+    // getNonce(walletAddress: string): Promise<string | null> {
+    //     return this.prisma.nonce.findUnique({ where: { walletAddress } }).then((nonce) => nonce?.nonce || null);    
+    // }
 }
